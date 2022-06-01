@@ -92,22 +92,46 @@ life_exp_v003[tmp_chng_col] <- lapply(life_exp_v003[tmp_chng_col], as.factor)
 
 Basic data prepping done. We want to now start to look at the data and check for collinearity,
 outliers, or possibly data that could benifit from log transformation or data that may repeat.
-```{r}
+```{r, figures-side, fig.show="hold", out.width="32%"}
 # Create a V004 
 life_exp_v004 <- life_exp_v003
 
-# Removing infant death because I feel the under.five.deaths includes infant deaths
-life_exp_v004 <- life_exp_v004[-c(6, )]
+# Loop through the categories and plot them to get a better understanding of the distribution
+col_names <- names(life_exp_v004)
+col_names_index <- 1
 
-
-
-
-
+for (col in life_exp_v004) {
+  plot(life_exp_v004$Life.expectancy, col, 
+       main=col_names[col_names_index], xlab="Life Expectancy")
+  col_names_index <- col_names_index + 1
+}
 ```
 
+### Notes:
 
+- Infant Deaths and under.five.deaths are strongly related
+- BMI almost looks like it can be broken down into 3 categories 
+- Population has some extreme outliers. Further research says it's all from India
+- There is some commonality between charts for categories that record immunization (shots)
+- Percentage.expenditure, GDP look to be quadratic 
 
+Apply a log transformation to the 2 charts that look to be quadratic. 
+Also drop the 5-9 Thinness. It's the same chart as the 10-19 thinness chart. 
+```{r, fig.show="hold", out.width="50%"}
+# Version 005
+life_exp_v005 <- subset(life_exp_v004, select=-thinness.5.9.years) # Removes Thiness 5-9 col
 
+# Log transform Percentage.expenditure, GDP,
+life_exp_v005$percentage.expenditure <- log(life_exp_v005$percentage.expenditure)
+life_exp_v005$GDP <- log(life_exp_v005$GDP)
+
+# Check the charts after transformation
+# It's only three, I don't need to loop through this 
+plot(life_exp_v005$Life.expectancy, life_exp_v005$percentage.expenditure,
+     main="percentage.expenditure", xlab="Life Expectancy")
+plot(life_exp_v005$Life.expectancy, life_exp_v005$GDP,
+     main="GDP", xlab="Life Expectancy")
+```
 
 
 
