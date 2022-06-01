@@ -1,0 +1,123 @@
+---
+title: "MSDS-6373-Project1"
+author: "Ryan H, Jason M"
+date: "5/30/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(stringr)
+library(plotly)
+library(ggplot2)
+library(plyr) # Load first before dplyer 
+library(dplyr)
+library(tidyr)
+
+# Turn off scientific notation. Mainly for the Percentage Expenditure
+options(scipen = 999)
+```
+
+Read in data first 
+```{r}
+life_exp_loc <- 'Data/LifeExpectancyData.csv'
+# Create the data frame that will not be modified 
+life_exp <- read.csv(life_exp_loc, sep=',', header = TRUE) 
+```
+
+# EDA
+### Start looking at missing data to get an idea of what to expect 
+```{r}
+# Create data frame of rows that contain missing data 
+rows_with_na <- life_exp[rowSums(is.na(life_exp)) > 0,] # 1,289 rows...
+
+# Count how many na's per column
+cols_with_na <- life_exp[is.na(life_exp$Schooling),]
+
+# Columns with # of 'na' values
+# -----------------------------
+# Life.expectancy: 10 *
+# Adult.Mortality: 10
+# Alcohol: 194
+# Hepatitis.B: 553 *
+# BMI: 34
+# Polio: 19
+# Total.expenditure: 226
+# Diphtheria: 19
+# GDP: 448
+# Population: 652 *
+# thiness1-19years: 34
+# thiness5-9years: 34
+# Income.comp.of.resc: 167
+# Schooling: 163
+# ----------------------------- 
+```
+- The two biggest column with the most amount of data missing is Hepatitis.B and the 
+Population. 
+- Since Life.expectancy is the value we are trying to predict, the rows that have 
+missing values for Life.expectancy should not be used in the training model
+- Will need to do some more EDA and keep an eye on these columns to see how 
+big of an impact they have.  
+- A lot of 0 values for infant deaths... That doesn't seem right. Looks like something
+that could throw off the data. 
+- In general keep an eye out if mortality rate in general has any affect
+- Also keep an eye on Percentage.expenditure. It's zero for a lot of countries that
+are considered developed, and there is another column for total spending on health
+for each country. 
+
+### Create a subset of data without the rows containing 'na' in Life.expectancy 
+```{r}
+# New DF with no NA Life.expectrancies 
+life_exp_v002 <- life_exp[!is.na(life_exp$Life.expectancy),]
+```
+
+Make some modifications to the columns. Changing Names of columns to be more relative
+and change the data types of some columns 
+```{r}
+# New version
+life_exp_v003 <- life_exp_v002
+
+# I know I can write this as one line, but this reads better
+colnames(life_exp_v003)[9] <- c("Hep.B.Shots")
+colnames(life_exp_v003)[10] <- c("Measle_Cases") # Per 1k
+colnames(life_exp_v003)[13] <- c("Polio_Shots") # Percent Amoung 1yr olds
+colnames(life_exp_v003)[14] <- c("Total_health_Spending") # Percent of total gov expenditure
+colnames(life_exp_v003)[15] <- c("Diphtheria_shots") # Percent among 1yr olds
+colnames(life_exp_v003)[16] <- c("HIV_AIDS_birth_deaths") # Per 1k
+
+# Change Country, Year, and Status columns to as.factor
+tmp_chng_col <- c("Country", "Year", "Status")
+life_exp_v003[tmp_chng_col] <- lapply(life_exp_v003[tmp_chng_col], as.factor)
+```
+
+Basic data prepping done. We want to now start to look at the data and check for collinearity,
+outliers, or possibly data that could benifit from log transformation or data that may repeat.
+```{r}
+# Create a V004 
+life_exp_v004 <- life_exp_v003
+
+# Removing infant death because I feel the under.five.deaths includes infant deaths
+life_exp_v004 <- life_exp_v004[-c(6, )]
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
