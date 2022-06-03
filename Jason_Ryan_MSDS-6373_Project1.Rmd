@@ -13,7 +13,7 @@ library(ggplot2)
 library(plyr) # Load first before dplyer 
 library(dplyr)
 library(tidyr)
-
+library(corrplot)
 # Turn off scientific notation. Mainly for the Percentage Expenditure
 options(scipen = 999)
 ```
@@ -65,43 +65,51 @@ that could throw off the data.
 are considered developed, and there is another column for total spending on health
 for each country. 
 
-### Create a subset of data without the rows containing 'na' in Life.expectancy 
+### Create a subset of data without the rows containing 'na' in Life.expectancy
+### And also seperate the training from test set 85/15
 ```{r}
 # New DF with no NA Life.expectrancies 
-life_exp_v002 <- life_exp[!is.na(life_exp$Life.expectancy),]
+life_exp_v02 <- life_exp[!is.na(life_exp$Life.expectancy),]
+
+# Sperate the data 
+set.seed(1536)
+split_size <- floor(0.85 * nrow(life_exp_v02))
+train_ind <- sample(seq_len(nrow(life_exp_v02)), size = split_size)
+life_exp_train_v01 <- life_exp_v02[train_ind,]
+life_exp_test <- life_exp_v02[-train_ind,]
 ```
 
 Make some modifications to the columns. Changing Names of columns to be more relative
 and change the data types of some columns 
 ```{r}
 # New version
-life_exp_v003 <- life_exp_v002
+life_exp_train_v02 <- life_exp_train_v01
 
 # I know I can write this as one line, but this reads better
-colnames(life_exp_v003)[9] <- c("Hep.B.Shots")
-colnames(life_exp_v003)[10] <- c("Measle_Cases") # Per 1k
-colnames(life_exp_v003)[13] <- c("Polio_Shots") # Percent Amoung 1yr olds
-colnames(life_exp_v003)[14] <- c("Total_health_Spending") # Percent of total gov expenditure
-colnames(life_exp_v003)[15] <- c("Diphtheria_shots") # Percent among 1yr olds
-colnames(life_exp_v003)[16] <- c("HIV_AIDS_birth_deaths") # Per 1k
+colnames(life_exp_train_v02)[9] <- c("Hep.B.Shots")
+colnames(life_exp_train_v02)[10] <- c("Measle_Cases") # Per 1k
+colnames(life_exp_train_v02)[13] <- c("Polio_Shots") # Percent Amoung 1yr olds
+colnames(life_exp_train_v02)[14] <- c("Total_health_Spending") # Percent of total gov expenditure
+colnames(life_exp_train_v02)[15] <- c("Diphtheria_shots") # Percent among 1yr olds
+colnames(life_exp_train_v02)[16] <- c("HIV_AIDS_birth_deaths") # Per 1k
 
 # Change Country, Year, and Status columns to as.factor
 tmp_chng_col <- c("Country", "Year", "Status")
-life_exp_v003[tmp_chng_col] <- lapply(life_exp_v003[tmp_chng_col], as.factor)
+life_exp_train_v02[tmp_chng_col] <- lapply(life_exp_train_v02[tmp_chng_col], as.factor)
 ```
 
 Basic data prepping done. We want to now start to look at the data and check for collinearity,
 outliers, or possibly data that could benifit from log transformation or data that may repeat.
 ```{r, figures-side, fig.show="hold", out.width="32%"}
-# Create a V004 
-life_exp_v004 <- life_exp_v003
+# Create a v03 
+life_exp_train_v03 <- life_exp_train_v02
 
 # Loop through the categories and plot them to get a better understanding of the distribution
-col_names <- names(life_exp_v004)
+col_names <- names(life_exp_train_v03)
 col_names_index <- 1
 
-for (col in life_exp_v004) {
-  plot(life_exp_v004$Life.expectancy, col, 
+for (col in life_exp_train_v03) {
+  plot(life_exp_train_v03$Life.expectancy, col, 
        main=col_names[col_names_index], xlab="Life Expectancy")
   col_names_index <- col_names_index + 1
 }
@@ -118,21 +126,48 @@ for (col in life_exp_v004) {
 Apply a log transformation to the 2 charts that look to be quadratic. 
 Also drop the 5-9 Thinness. It's the same chart as the 10-19 thinness chart. 
 ```{r, fig.show="hold", out.width="50%"}
-# Version 005
-life_exp_v005 <- subset(life_exp_v004, select=-thinness.5.9.years) # Removes Thiness 5-9 col
+# Version v04
+life_exp_train_v04 <- subset(life_exp_train_v03, select=-thinness.5.9.years) # Removes Thiness 5-9 col
 
 # Log transform Percentage.expenditure, GDP,
-life_exp_v005$percentage.expenditure <- log(life_exp_v005$percentage.expenditure)
-life_exp_v005$GDP <- log(life_exp_v005$GDP)
+life_exp_train_v04$percentage.expenditure <- log(life_exp_train_v04$percentage.expenditure)
+life_exp_train_v04$GDP <- log(life_exp_train_v04$GDP)
 
 # Check the charts after transformation
 # It's only three, I don't need to loop through this 
-plot(life_exp_v005$Life.expectancy, life_exp_v005$percentage.expenditure,
+plot(life_exp_train_v04$Life.expectancy, life_exp_train_v04$percentage.expenditure,
      main="percentage.expenditure", xlab="Life Expectancy")
-plot(life_exp_v005$Life.expectancy, life_exp_v005$GDP,
+plot(life_exp_train_v04$Life.expectancy, life_exp_train_v04$GDP,
      main="GDP", xlab="Life Expectancy")
+
 ```
 
+Create a correlation table with only the continous data
+https://cran.r-project.org/web/packages/olsrr/vignettes/regression_diagnostics.html
+```{r}
+# Create a version with only numerical values
+life_exp_train_v04.1 <- subset(life_exp_train_v04, select=c(-Country, -Year, -Status))
+
+# Using the corrplot package 
+# Using pairwise.complete.obs to ignore the na values, but still include the row
+cor_num_only <- cor(life_exp_train_v04.1, use='pairwise.complete.obs')
+
+```
+There was a strong correlation between
+
+- GDP and Percentage.expenditure (when ran with v004. V005 gave non-real numbers) @.89
+- under.five.deaths and infant deaths @.99
+- HepB and Diphtheria shots @.61
+
+I believe the path forward will be dropping Percentage.expenditure, infant.deaths because
+they have a lower correlation with Life.Expectancy. The shots will stay and the variable 
+selection will decide if they stay or go. 
+
+```{r}
+# v006
+# Remove Percentage.expedeture and infant.deaths
+life_exp_train_v05 <- subset(life_exp_train_v04, select=c(-infant.deaths, -percentage.expenditure))
+```
 
 
 
