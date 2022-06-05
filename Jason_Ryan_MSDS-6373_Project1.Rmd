@@ -68,15 +68,27 @@ for each country.
 ### Create a subset of data without the rows containing 'na' in Life.expectancy
 ### And also seperate the training from test set 85/15
 ```{r}
+# Bollean value that if set to TRUE will split the data 85/15 here
+# If FALSE, we will split later 
+# Will still use the same variable names
+split_data <- FALSE
+```
+
+```{r}
 # New DF with no NA Life.expectrancies 
 life_exp_v02 <- life_exp[!is.na(life_exp$Life.expectancy),]
 
-# Sperate the data 
-set.seed(1536)
-split_size <- floor(0.85 * nrow(life_exp_v02))
-train_ind <- sample(seq_len(nrow(life_exp_v02)), size = split_size)
-life_exp_train_v01 <- life_exp_v02[train_ind,]
-life_exp_test <- life_exp_v02[-train_ind,]
+if (split_data == TRUE) {
+  # Sperate the data 
+  set.seed(1536)
+  split_size <- floor(0.85 * nrow(life_exp_v02))
+  train_ind <- sample(seq_len(nrow(life_exp_v02)), size = split_size)
+  life_exp_train_v01 <- life_exp_v02[train_ind,]
+  life_exp_test <- life_exp_v02[-train_ind,]
+} else {
+  life_exp_train_v01 <- life_exp_v02
+  life_exp_test <- data.frame() # Empty data frame to be populated later 
+}
 ```
 
 Make some modifications to the columns. Changing Names of columns to be more relative
