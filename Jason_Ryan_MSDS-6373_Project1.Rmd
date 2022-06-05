@@ -68,7 +68,7 @@ for each country.
 ### Create a subset of data without the rows containing 'na' in Life.expectancy
 ### And also seperate the training from test set 85/15
 ```{r}
-# Bollean value that if set to TRUE will split the data 85/15 here
+# Boolean value that if set to TRUE will split the data 85/15 here
 # If FALSE, we will split later 
 # Will still use the same variable names
 split_data <- FALSE
@@ -146,11 +146,17 @@ life_exp_train_v04$percentage.expenditure <- log(life_exp_train_v04$percentage.e
 life_exp_train_v04$GDP <- log(life_exp_train_v04$GDP)
 
 # Check the charts after transformation
-# It's only three, I don't need to loop through this 
+# It's only two, I don't need to loop through this 
 plot(life_exp_train_v04$Life.expectancy, life_exp_train_v04$percentage.expenditure,
      main="percentage.expenditure", xlab="Life Expectancy")
 plot(life_exp_train_v04$Life.expectancy, life_exp_train_v04$GDP,
      main="GDP", xlab="Life Expectancy")
+
+log_gdp_fit <- lm(Life.expectancy~GDP, data=life_exp_train_v04)
+plot(log_gdp_fit)
+
+log_pe_fit <- lm(Life.expectancy~percentage.expenditure, data=life_exp_train_v04, na.action = NULL)
+plot(log_pe_fit)
 
 ```
 
