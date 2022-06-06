@@ -229,11 +229,21 @@ life_exp_train_v06 <- subset(life_exp_train_v05, select=c(-Country))
 life_exp_train_v06_mice <- mice(life_exp_train_v06, seed=1234, method="cart")
 life_exp_train_v06 <- complete(life_exp_train_v06_mice)
 
-# Remove life expectancy for the matrix for glmnet
-life_exp_train_v06.1 <- subset(life_exp_train_v06, select=c(-Life.expectancy))
+# Split the data 
+if (split_data == FALSE) {
+  # Sperate the data 
+  set.seed(1536)
+  split_size <- floor(0.85 * nrow(life_exp_train_v06))
+  train_ind <- sample(seq_len(nrow(life_exp_train_v06)), size = split_size)
+  life_exp_train_v06_final <- life_exp_train_v06[train_ind,]
+  life_exp_test <- life_exp_train_v06[-train_ind,]
+}
+
+# Remove life expectancy for the matrix for glmnet. Built off v06_final
+life_exp_train_v06.1 <- subset(life_exp_train_v06_final, select=c(-Life.expectancy))
 
 # Matrix for glmnet
-lasso_y <- life_exp_train_v06$Life.expectancy
+lasso_y <- life_exp_train_v06_final$Life.expectancy
 
 # Define varaibles outside of the Lasso function 
 lasso_x <- data.matrix(life_exp_train_v06.1)
@@ -246,7 +256,10 @@ plot(life_cv_model)
 coef(life_cv_model)
 ```
 
+Create a prediction with the _test
+```{r}
 
+```
 
 
 
