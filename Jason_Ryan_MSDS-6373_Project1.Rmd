@@ -222,6 +222,7 @@ Get out the whip and use a little LASSO
 ```{r, message=FALSE, warning=FALSE}
 # Create a data subset because slicing an existing data frame to make a matrix is 
 # a huge pain in the keyboard
+# Removing Country because the amount of factors scews the data
 life_exp_train_v06 <- subset(life_exp_train_v05, select=c(-Country))
 
 # Solve for missing data using mice
@@ -240,6 +241,9 @@ lasso_x <- data.matrix(life_exp_train_v06.1)
 # Lasso model
 life_cv_model <- cv.glmnet(lasso_x, lasso_y, alpha=1)
 plot(life_cv_model)
+
+# Show Coefficients
+coef(life_cv_model)
 ```
 
 
