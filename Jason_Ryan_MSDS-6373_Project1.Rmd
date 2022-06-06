@@ -213,6 +213,9 @@ model_stpwise_aic_df <- subset(life_exp_train_v05, select=c('Country', 'Hep.B.Sh
   'Population', 'Alcohol', 'Year', 'HIV_AIDS_birth_deaths', 'GDP', 'thinness..1.19.years',
   'Schooling', 'under.five.deaths', 'Income.composition.of.resources'))
 
+plot(model_stpwise_p$model)
+plot(model_stpwise_aic)
+
 model_stpwise_p
 model_stpwise_aic
 ```
@@ -251,43 +254,61 @@ lasso_x <- data.matrix(life_exp_train_v06.1)
 # Lasso model
 life_cv_model <- cv.glmnet(lasso_x, lasso_y, alpha=1)
 plot(life_cv_model)
-
 # Show Coefficients
 coef(life_cv_model)
+
+plot(life_cv_model$glmnet.fit)
+
 ```
 
 Create a prediction with the _test
 ```{r}
+# Remove variables from test 
+life_exp_test_no_l.e = subset(life_exp_test, select=c(-Life.expectancy))
+# Predict
+life_exp_pred = predict(life_cv_model, data.matrix(life_exp_test_no_l.e))
+# Convert back to data frame
+life_exp_pred <- as.data.frame(life_exp_pred)
+
+# List original values against predicted values 
+life_cv_pred_results <- data.frame(original=life_exp_test$Life.expectancy,
+                                   predicted=life_exp_pred$lambda.1se)
+
+# Check summary of model 
+summary(life_cv_pred_results)
+# Get RMSE
+pred_rsme <- sqrt(mean((life_cv_pred_results$original - life_cv_pred_results$predicted)^2))
+paste("The RMSE = ", as.character(pred_rsme), sep=' ') # 3.88
 
 ```
 
 
-
-
-
-
-
-
----- Start Solo Analysis ----
-If the data was not split from above then go ahead and split it here
+### Objective 2
+We're going to try out a KNN model for Objective 2.  
 ```{r}
-if (split_data == FALSE) {
-  # Sperate the data 
-  set.seed(1536)
-  split_size <- floor(0.85 * nrow(life_exp_train_v05))
-  train_ind <- sample(seq_len(nrow(life_exp_train_v05)), size = split_size)
-  life_exp_train_final <- life_exp_train_v05[train_ind,]
-  life_exp_test <- life_exp_train_v05[-train_ind,]
-}
+library(caret)
+#I'm using the output from the split below but renaming to help differentiate in the knn model to prevent confusion from here and there
+#Converting the factors to numeric on the level to prevent NAs by coercion in Knn.
+life_exp_train_v06_final$Year <- as.numeric(as.integer(factor(life_exp_train_v06_final$Year)))
+life_exp_train_v06_final$Status <- as.numeric(as.integer(factor(life_exp_train_v06_final$Status)))
+life_exp_test$Year <- as.numeric(as.integer(factor(life_exp_test$Year)))
+life_exp_test$Status <- as.numeric(as.integer(factor(life_exp_test$Status)))
+train_pred <- subset(life_exp_train_v06_final, select=c(-Life.expectancy))
+train_out <- life_exp_train_v06_final$Life.expectancy
+test_pred <- subset(life_exp_test, select=c(-Life.expectancy))
+test_out <- life_exp_test$Life.expectancy
+#train a knn model
+le.knn <- knnreg(train_pred, train_out)
+#predict the test life expectancy
+predicted_test <- predict(le.knn, data.frame(test_pred))
+#output the MSE, MAE, and RMSE
+cat("MSE: ", mean((test_out - predicted_test)^2), " MAE: ", caret::MAE(test_out, predicted_test), " RMSE: ", caret::RMSE(test_out, predicted_test))
+#create a plot of the results of the knn model.
+x_value <- 1:length(test_out)
+plot(x_value, test_out, col="Green", type="l", lwd=1, main="Predicted Life Expectancy", xlab="", ylab="Age")
+lines(x_value, predicted_test, col="Orange", lwd=1)
+legend("topleft", legend=c("Original Life Exp.", "Predicted Life Exp"), fill = c("Green", "Orange"), col=2:3, adj=c(0,0.5))
+grid()
 ```
-
-
-
-
-
-
-
-
-
 
 
