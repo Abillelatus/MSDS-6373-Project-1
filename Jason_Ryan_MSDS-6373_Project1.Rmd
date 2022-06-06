@@ -14,6 +14,9 @@ library(plyr) # Load first before dplyer
 library(dplyr)
 library(tidyr)
 library(corrplot)
+library(glmnet)
+library(olsrr)
+library(mice)
 # Turn off scientific notation. Mainly for the Percentage Expenditure
 options(scipen = 999)
 ```
@@ -68,15 +71,27 @@ for each country.
 ### Create a subset of data without the rows containing 'na' in Life.expectancy
 ### And also seperate the training from test set 85/15
 ```{r}
+# Boolean value that if set to TRUE will split the data 85/15 here
+# If FALSE, we will split later 
+# Will still use the same variable names
+split_data <- FALSE
+```
+
+```{r}
 # New DF with no NA Life.expectrancies 
 life_exp_v02 <- life_exp[!is.na(life_exp$Life.expectancy),]
 
-# Sperate the data 
-set.seed(1536)
-split_size <- floor(0.85 * nrow(life_exp_v02))
-train_ind <- sample(seq_len(nrow(life_exp_v02)), size = split_size)
-life_exp_train_v01 <- life_exp_v02[train_ind,]
-life_exp_test <- life_exp_v02[-train_ind,]
+if (split_data == TRUE) {
+  # Sperate the data 
+  set.seed(1536)
+  split_size <- floor(0.85 * nrow(life_exp_v02))
+  train_ind <- sample(seq_len(nrow(life_exp_v02)), size = split_size)
+  life_exp_train_v01 <- life_exp_v02[train_ind,]
+  life_exp_test <- life_exp_v02[-train_ind,]
+} else {
+  life_exp_train_v01 <- life_exp_v02
+  life_exp_test <- data.frame() # Empty data frame to be populated later 
+}
 ```
 
 Make some modifications to the columns. Changing Names of columns to be more relative
@@ -133,12 +148,21 @@ life_exp_train_v04 <- subset(life_exp_train_v03, select=-thinness.5.9.years) # R
 life_exp_train_v04$percentage.expenditure <- log(life_exp_train_v04$percentage.expenditure)
 life_exp_train_v04$GDP <- log(life_exp_train_v04$GDP)
 
+# Remove INF values in the percentage.expendature
+life_exp_train_v04$percentage.expenditure[is.infinite(life_exp_train_v04$percentage.expenditure)] <- NA
+
 # Check the charts after transformation
-# It's only three, I don't need to loop through this 
+# It's only two, I don't need to loop through this 
 plot(life_exp_train_v04$Life.expectancy, life_exp_train_v04$percentage.expenditure,
      main="percentage.expenditure", xlab="Life Expectancy")
 plot(life_exp_train_v04$Life.expectancy, life_exp_train_v04$GDP,
      main="GDP", xlab="Life Expectancy")
+
+log_gdp_fit <- lm(Life.expectancy~GDP, data=life_exp_train_v04)
+plot(log_gdp_fit)
+
+log_pe_fit <- lm(Life.expectancy~percentage.expenditure, data=life_exp_train_v04, na.action=na.omit)
+plot(log_pe_fit)
 
 ```
 
@@ -155,7 +179,7 @@ cor_num_only <- cor(life_exp_train_v04.1, use='pairwise.complete.obs')
 ```
 There was a strong correlation between
 
-- GDP and Percentage.expenditure (when ran with v004. V005 gave non-real numbers) @.89
+- GDP and Percentage.expenditure (when ran with v004) @.94
 - under.five.deaths and infant deaths @.99
 - HepB and Diphtheria shots @.61
 
@@ -169,6 +193,93 @@ selection will decide if they stay or go.
 life_exp_train_v05 <- subset(life_exp_train_v04, select=c(-infant.deaths, -percentage.expenditure))
 ```
 
+Create Universal model that could be used later if needed
+```{r}
+# Base model with no selection process
+model_orig <- lm(Life.expectancy~., data=life_exp_train_v05)
+```
+
+### Stepwise Selction
+```{r, message=FALSE, warning=FALSE}
+# Not Using AIC
+model_stpwise_p <- ols_step_both_p(model_orig)
+model_stpwise_p_df <- subset(life_exp_train_v05, select=c('Country', 'Adult.Mortality',
+  'Income.composition.of.resources', 'Schooling', 'Year', 'HIV_AIDS_birth_deaths', 
+  'Diphtheria_shots', 'Measle_Cases'))
+
+# Using AIC
+model_stpwise_aic <- ols_step_both_aic(model_orig, details=FALSE)
+model_stpwise_aic_df <- subset(life_exp_train_v05, select=c('Country', 'Hep.B.Shots', 
+  'Population', 'Alcohol', 'Year', 'HIV_AIDS_birth_deaths', 'GDP', 'thinness..1.19.years',
+  'Schooling', 'under.five.deaths', 'Income.composition.of.resources'))
+
+model_stpwise_p
+model_stpwise_aic
+```
+
+Get out the whip and use a little LASSO 
+### LASSO
+```{r, message=FALSE, warning=FALSE}
+# Create a data subset because slicing an existing data frame to make a matrix is 
+# a huge pain in the keyboard
+# Removing Country because the amount of factors scews the data
+life_exp_train_v06 <- subset(life_exp_train_v05, select=c(-Country))
+
+# Solve for missing data using mice
+life_exp_train_v06_mice <- mice(life_exp_train_v06, seed=1234, method="cart")
+life_exp_train_v06 <- complete(life_exp_train_v06_mice)
+
+# Split the data 
+if (split_data == FALSE) {
+  # Sperate the data 
+  set.seed(1536)
+  split_size <- floor(0.85 * nrow(life_exp_train_v06))
+  train_ind <- sample(seq_len(nrow(life_exp_train_v06)), size = split_size)
+  life_exp_train_v06_final <- life_exp_train_v06[train_ind,]
+  life_exp_test <- life_exp_train_v06[-train_ind,]
+}
+
+# Remove life expectancy for the matrix for glmnet. Built off v06_final
+life_exp_train_v06.1 <- subset(life_exp_train_v06_final, select=c(-Life.expectancy))
+
+# Matrix for glmnet
+lasso_y <- life_exp_train_v06_final$Life.expectancy
+
+# Define varaibles outside of the Lasso function 
+lasso_x <- data.matrix(life_exp_train_v06.1)
+
+# Lasso model
+life_cv_model <- cv.glmnet(lasso_x, lasso_y, alpha=1)
+plot(life_cv_model)
+
+# Show Coefficients
+coef(life_cv_model)
+```
+
+Create a prediction with the _test
+```{r}
+
+```
+
+
+
+
+
+
+
+
+---- Start Solo Analysis ----
+If the data was not split from above then go ahead and split it here
+```{r}
+if (split_data == FALSE) {
+  # Sperate the data 
+  set.seed(1536)
+  split_size <- floor(0.85 * nrow(life_exp_train_v05))
+  train_ind <- sample(seq_len(nrow(life_exp_train_v05)), size = split_size)
+  life_exp_train_final <- life_exp_train_v05[train_ind,]
+  life_exp_test <- life_exp_train_v05[-train_ind,]
+}
+```
 
 
 
